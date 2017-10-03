@@ -7,6 +7,8 @@ public interface Storage {
 
     void store(String targetName, Path sourceFile);
 
+    void store(String name, byte[] data, String mimeType);
+
     Path retrieve(String path);
 
     List<String> list();

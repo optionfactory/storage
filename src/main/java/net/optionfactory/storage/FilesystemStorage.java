@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,6 +22,16 @@ public class FilesystemStorage implements Storage {
             Files.createDirectories(repository);
             Files.copy(file, repository.resolve(name));
         } catch (IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    @Override
+    public void store(String name, byte[] data, String mimeType) {
+        try {
+            Files.createDirectories(repository);
+            Files.write(repository.resolve(name), data, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        }catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
     }

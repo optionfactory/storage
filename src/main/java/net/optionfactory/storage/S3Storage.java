@@ -8,9 +8,11 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.util.IOUtils;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -47,6 +49,23 @@ public class S3Storage implements Storage {
             final String contentType = contentTypeForFile(file);
             logger.info(String.format("Uploading to S3 file %s with content type %s", file.toString(), contentType));
             por.putCustomRequestHeader("Content-Type", contentType);
+            por.putCustomRequestHeader("Cache-Control", String.format("max-age=%d", cacheMaxAge));
+            s3.putObject(por);
+        } catch (AmazonClientException ex) {
+            logger.error(String.format("Unable to store %s on S3 bucket %s", name, bucket), ex);
+            throw new IllegalStateException(String.format("Unable to store %s on S3 bucket %s", name, bucket), ex);
+        }
+    }
+
+    @Override
+    public void store(String name, byte[] data, String mimeType) {
+        try {
+            final ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(data.length);
+            metadata.setContentType(mimeType);
+            final PutObjectRequest por = new PutObjectRequest(bucket, name, new ByteArrayInputStream(data), metadata);
+            logger.info(String.format("Uploading to S3 name %s with content type %s", name, mimeType));
+            por.putCustomRequestHeader("Content-Type", mimeType);
             por.putCustomRequestHeader("Cache-Control", String.format("max-age=%d", cacheMaxAge));
             s3.putObject(por);
         } catch (AmazonClientException ex) {
