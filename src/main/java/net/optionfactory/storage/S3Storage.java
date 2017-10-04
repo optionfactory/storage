@@ -14,6 +14,7 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.util.IOUtils;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -23,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.log4j.Logger;
 import org.apache.tika.Tika;
 
@@ -30,6 +32,7 @@ public class S3Storage implements Storage {
 
     private static final Logger logger = Logger.getLogger(S3Storage.class);
     private static final String DEFAULT_CONTENT_TYPE = "binary/octet-stream";
+    private static final String URL_TEMPLATE = "https://%s.s3.amazonaws.com/%s";
     private final Tika tika = new Tika();
     private final AmazonS3 s3;
     private final String bucket;
@@ -134,6 +137,14 @@ public class S3Storage implements Storage {
             logger.error(String.format("Unable to dermine MIME type for file %s", file.toString()), ex);
             return DEFAULT_CONTENT_TYPE;
         }
+    }
+
+    @Override
+    public String absoluteUrl(String... relativePath) {
+        if (relativePath.length == 0) {
+            throw new IllegalArgumentException("At least one relative path must be specified.");
+        }
+        return String.format(URL_TEMPLATE, bucket, Stream.of(relativePath).collect(Collectors.joining("/")));
     }
 
 }

@@ -17,4 +17,5 @@ public interface Storage {
 
     void copy(String sourceName, String targetName);
 
+    String absoluteUrl(String... paths);
 }

@@ -1,5 +1,6 @@
 package net.optionfactory.storage;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -7,6 +8,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class FilesystemStorage implements Storage {
 
@@ -31,7 +33,7 @@ public class FilesystemStorage implements Storage {
         try {
             Files.createDirectories(repository);
             Files.write(repository.resolve(name), data, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-        }catch (IOException ex) {
+        } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
     }
@@ -68,6 +70,16 @@ public class FilesystemStorage implements Storage {
         } catch (IOException ex) {
             throw new IllegalStateException("Unable to copy file", ex);
         }
+    }
+
+    @Override
+    public String absoluteUrl(String... relativePath) {
+        if (relativePath.length == 0) {
+            throw new IllegalArgumentException("At least one relative path must be specified.");
+        }
+        //TODO: override uri generation with a pre-defined schema/domain if files are served somehow
+        final String path = Stream.of(relativePath).collect(Collectors.joining(File.pathSeparator));
+        return repository.resolve(path).toUri().toString();
     }
 
 }
