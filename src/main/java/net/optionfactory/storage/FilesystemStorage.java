@@ -82,4 +82,9 @@ public class FilesystemStorage implements Storage {
         return repository.resolve(path).toUri().toString();
     }
 
+    @Override
+    public void publish(String name) {
+        // noop
+    }
+
 }

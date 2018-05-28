@@ -14,7 +14,6 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.util.IOUtils;
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -105,6 +104,17 @@ public class S3Storage implements Storage {
             logger.error(String.format("Unable to copy %s to %s from S3 bucket %s", sourceName, targetName, bucket), ex);
             throw new IllegalStateException(String.format("Unable to copy %s to %s from S3 bucket %s", sourceName, targetName, bucket), ex);
         }
+    }
+
+    @Override
+    public void publish(String name) {
+        try {
+            s3.setObjectAcl(bucket, name, CannedAccessControlList.PublicRead);
+        } catch (AmazonClientException ex) {
+            logger.error(String.format("Unable to publish %s from S3 bucket %s", name, bucket), ex);
+            throw new IllegalStateException(String.format("Unable to publish %s from S3 bucket %s", name, bucket), ex);
+        }
+
     }
 
     @Override
