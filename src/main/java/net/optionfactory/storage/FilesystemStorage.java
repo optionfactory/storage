@@ -20,6 +20,12 @@ public class FilesystemStorage implements Storage {
 
     @Override
     public void store(String name, Path file) {
+        store(name, file, null);
+
+    }
+
+    @Override
+    public void store(String name, Path file, Permissions ignored) {
         try {
             Files.createDirectories(repository);
             Files.copy(file, repository.resolve(name));
@@ -30,6 +36,11 @@ public class FilesystemStorage implements Storage {
 
     @Override
     public void store(String name, byte[] data, String mimeType) {
+        store(name, data, mimeType, null);
+    }
+
+    @Override
+    public void store(String name, byte[] data, String mimeType, Permissions ignored) {
         try {
             Files.createDirectories(repository);
             Files.write(repository.resolve(name), data, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
@@ -84,6 +95,11 @@ public class FilesystemStorage implements Storage {
 
     @Override
     public void publish(String name) {
+        // noop
+    }
+
+    @Override
+    public void unpublish(String name) {
         // noop
     }
 

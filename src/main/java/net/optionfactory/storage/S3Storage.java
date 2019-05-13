@@ -2,11 +2,12 @@ package net.optionfactory.storage;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -37,32 +38,56 @@ public class S3Storage implements Storage {
     private final String bucket;
     private final long cacheMaxAge;
 
+    private CannedAccessControlList aclFromPermissions(Permissions permissions) {
+        switch (permissions) {
+            case PUBLIC_READ:
+                return CannedAccessControlList.PublicRead;
+            case PRIVATE:
+                return CannedAccessControlList.Private;
+            default:
+                throw new IllegalArgumentException(String.format("Unknown permission %s", permissions));
+
+        }
+    }
+
     public S3Storage(String username, String password, String region, String bucket, long cacheMaxAge) {
         final AWSCredentials credentials = new BasicAWSCredentials(username, password);
-        this.s3 = new AmazonS3Client(credentials);
+        this.s3 = AmazonS3ClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .build();
         s3.setRegion(Region.getRegion(Regions.fromName(region)));
         this.bucket = bucket;
         this.cacheMaxAge = cacheMaxAge;
     }
 
     @Override
-    public void store(String name, Path file) {
+    public void store(String targetName, Path sourceFile) {
+        store(targetName, sourceFile, Permissions.PUBLIC_READ);
+    }
+
+    @Override
+    public void store(String targetName, Path sourceFile, Permissions permissions) {
         try {
-            final PutObjectRequest por = new PutObjectRequest(bucket, name, file.toFile());
-            final String contentType = contentTypeForFile(file);
-            logger.info(String.format("Uploading to S3 file %s with content type %s", file.toString(), contentType));
+            final PutObjectRequest por = new PutObjectRequest(bucket, targetName, sourceFile.toFile());
+            final String contentType = contentTypeForFile(sourceFile);
+            logger.info(String.format("Uploading to S3 file %s with content type %s", sourceFile.toString(), contentType));
             por.putCustomRequestHeader("Content-Type", contentType);
             por.putCustomRequestHeader("Cache-Control", String.format("max-age=%d", cacheMaxAge));
-            por.setCannedAcl(CannedAccessControlList.PublicRead);
+            por.setCannedAcl(aclFromPermissions(permissions));
             s3.putObject(por);
         } catch (AmazonClientException ex) {
-            logger.error(String.format("Unable to store %s on S3 bucket %s", name, bucket), ex);
-            throw new IllegalStateException(String.format("Unable to store %s on S3 bucket %s", name, bucket), ex);
+            logger.error(String.format("Unable to store %s on S3 bucket %s", targetName, bucket), ex);
+            throw new IllegalStateException(String.format("Unable to store %s on S3 bucket %s", targetName, bucket), ex);
         }
     }
 
     @Override
     public void store(String name, byte[] data, String mimeType) {
+        store(name, data, mimeType, Permissions.PUBLIC_READ);
+    }
+
+    @Override
+    public void store(String name, byte[] data, String mimeType, Permissions permissions) {
         try {
             final ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(data.length);
@@ -71,7 +96,7 @@ public class S3Storage implements Storage {
             logger.info(String.format("Uploading to S3 name %s with content type %s", name, mimeType));
             por.putCustomRequestHeader("Content-Type", mimeType);
             por.putCustomRequestHeader("Cache-Control", String.format("max-age=%d", cacheMaxAge));
-            por.setCannedAcl(CannedAccessControlList.PublicRead);
+            por.setCannedAcl(aclFromPermissions(permissions));
             s3.putObject(por);
         } catch (AmazonClientException ex) {
             logger.error(String.format("Unable to store %s on S3 bucket %s", name, bucket), ex);
@@ -115,6 +140,16 @@ public class S3Storage implements Storage {
             throw new IllegalStateException(String.format("Unable to publish %s from S3 bucket %s", name, bucket), ex);
         }
 
+    }
+
+    @Override
+    public void unpublish(String name) {
+        try {
+            s3.setObjectAcl(bucket, name, CannedAccessControlList.Private);
+        } catch (AmazonClientException ex) {
+            logger.error(String.format("Unable to unpublish %s from S3 bucket %s", name, bucket), ex);
+            throw new IllegalStateException(String.format("Unable to unpublish %s from S3 bucket %s", name, bucket), ex);
+        }
     }
 
     @Override
