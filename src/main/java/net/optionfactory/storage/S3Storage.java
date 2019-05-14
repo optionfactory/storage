@@ -54,8 +54,8 @@ public class S3Storage implements Storage {
         final AWSCredentials credentials = new BasicAWSCredentials(username, password);
         this.s3 = AmazonS3ClientBuilder.standard()
                 .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .withRegion(region)
                 .build();
-        s3.setRegion(Region.getRegion(Regions.fromName(region)));
         this.bucket = bucket;
         this.cacheMaxAge = cacheMaxAge;
     }
