@@ -2,8 +2,10 @@ package net.optionfactory.storage;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
@@ -51,9 +53,12 @@ public class S3Storage implements Storage {
     }
 
     public S3Storage(String username, String password, String region, String bucket, long cacheMaxAge) {
-        final AWSCredentials credentials = new BasicAWSCredentials(username, password);
+        this(new AWSStaticCredentialsProvider(new BasicAWSCredentials(username, password)), region, bucket, cacheMaxAge);
+    }
+
+    public S3Storage(AWSCredentialsProvider provider, String region, String bucket, long cacheMaxAge) {
         this.s3 = AmazonS3ClientBuilder.standard()
-                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .withCredentials(provider)
                 .withRegion(region)
                 .build();
         this.bucket = bucket;
