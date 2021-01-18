@@ -95,6 +95,10 @@
                         <goals>
                             <goal>jar</goal>
                         </goals>
+                        <configuration>
+                            <additionalparam>-Xdoclint:none</additionalparam>
+                            <detectJavaApiLink>false</detectJavaApiLink>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
