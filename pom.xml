@@ -5,7 +5,7 @@
     <artifactId>storage</artifactId>
     <name>optionfactory-storage</name>
     <packaging>jar</packaging>
-    <version>3.0</version>
+    <version>3.1-SNAPSHOT</version>
     <description>Light wrapper for AWS S3 sdk</description>
     <url>https://github.com/optionfactory/storage</url>
     <licenses>
