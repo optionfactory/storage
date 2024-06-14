@@ -7,19 +7,7 @@ public interface Storage {
 
     void store(String targetName, Path sourceFile, Permissions permissions);
 
-    /**
-     * @deprecated use method with permissions
-     */
-    @Deprecated
-    void store(String targetName, Path sourceFile);
-
     void store(String name, byte[] data, String mimeType, Permissions permissions);
-
-    /**
-     * @deprecated use method with permissions
-     */
-    @Deprecated
-    void store(String name, byte[] data, String mimeType);
 
     Path retrieve(String path);
 
@@ -32,6 +20,6 @@ public interface Storage {
     String absoluteUrl(String... paths);
 
     void publish(String name);
-    
+
     void unpublish(String name);
 }

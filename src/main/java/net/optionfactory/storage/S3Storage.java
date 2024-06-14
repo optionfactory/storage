@@ -11,6 +11,7 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.IOUtils;
 import org.apache.tika.Tika;
 
@@ -23,6 +24,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,15 +42,10 @@ public class S3Storage implements Storage {
     private final long cacheMaxAge;
 
     private CannedAccessControlList aclFromPermissions(Permissions permissions) {
-        switch (permissions) {
-            case PUBLIC_READ:
-                return CannedAccessControlList.PublicRead;
-            case PRIVATE:
-                return CannedAccessControlList.Private;
-            default:
-                throw new IllegalArgumentException(String.format("Unknown permission %s", permissions));
-
-        }
+        return switch (permissions) {
+            case PUBLIC_READ -> CannedAccessControlList.PublicRead;
+            case PRIVATE -> CannedAccessControlList.Private;
+        };
     }
 
     public S3Storage(String username, String password, String region, String bucket, long cacheMaxAge) {
@@ -65,29 +62,19 @@ public class S3Storage implements Storage {
     }
 
     @Override
-    public void store(String targetName, Path sourceFile) {
-        store(targetName, sourceFile, Permissions.PUBLIC_READ);
-    }
-
-    @Override
     public void store(String targetName, Path sourceFile, Permissions permissions) {
         try {
             final PutObjectRequest por = new PutObjectRequest(bucket, targetName, sourceFile.toFile());
             final String contentType = contentTypeForFile(sourceFile);
-            logger.info(String.format("Uploading to S3 file {} with content type {}", sourceFile.toString(), contentType));
+            logger.info("Uploading to S3 file {} with content type {}", sourceFile, contentType);
             por.putCustomRequestHeader("Content-Type", contentType);
             por.putCustomRequestHeader("Cache-Control", String.format("max-age=%d", cacheMaxAge));
             por.setCannedAcl(aclFromPermissions(permissions));
             s3.putObject(por);
         } catch (AmazonClientException ex) {
-            logger.error(String.format("Unable to store {} on S3 bucket {}", targetName, bucket), ex);
+            logger.error("Unable to store {} on S3 bucket {}", targetName, bucket, ex);
             throw new IllegalStateException(String.format("Unable to store %s on S3 bucket %s", targetName, bucket), ex);
         }
-    }
-
-    @Override
-    public void store(String name, byte[] data, String mimeType) {
-        store(name, data, mimeType, Permissions.PUBLIC_READ);
     }
 
     @Override
@@ -97,13 +84,13 @@ public class S3Storage implements Storage {
             metadata.setContentLength(data.length);
             metadata.setContentType(mimeType);
             final PutObjectRequest por = new PutObjectRequest(bucket, name, new ByteArrayInputStream(data), metadata);
-            logger.info(String.format("Uploading to S3 name {} with content type {}", name, mimeType));
+            logger.info("Uploading to S3 name {} with content type {}", name, mimeType);
             por.putCustomRequestHeader("Content-Type", mimeType);
             por.putCustomRequestHeader("Cache-Control", String.format("max-age=%d", cacheMaxAge));
             por.setCannedAcl(aclFromPermissions(permissions));
             s3.putObject(por);
         } catch (AmazonClientException ex) {
-            logger.error(String.format("Unable to store {} on S3 bucket {}", name, bucket), ex);
+            logger.error("Unable to store {} on S3 bucket {}", name, bucket, ex);
             throw new IllegalStateException(String.format("Unable to store %s on S3 bucket %s", name, bucket), ex);
         }
     }
@@ -120,7 +107,7 @@ public class S3Storage implements Storage {
                 }
             }
         } catch (AmazonClientException | IOException ex) {
-            logger.error(String.format("Unable to retrieve {} from S3 bucket {}", name, bucket), ex);
+            logger.error("Unable to retrieve {} from S3 bucket {}", name, bucket, ex);
             throw new IllegalStateException(String.format("Unable to retrieve %s from S3 bucket %s", name, bucket), ex);
         }
     }
@@ -130,7 +117,7 @@ public class S3Storage implements Storage {
         try {
             s3.copyObject(bucket, sourceName, bucket, targetName);
         } catch (AmazonClientException ex) {
-            logger.error(String.format("Unable to copy {} to {} from S3 bucket {}", sourceName, targetName, bucket), ex);
+            logger.error("Unable to copy {} to {} from S3 bucket {}", sourceName, targetName, bucket, ex);
             throw new IllegalStateException(String.format("Unable to copy %s to %s from S3 bucket %s", sourceName, targetName, bucket), ex);
         }
     }
@@ -140,7 +127,7 @@ public class S3Storage implements Storage {
         try {
             s3.setObjectAcl(bucket, name, CannedAccessControlList.PublicRead);
         } catch (AmazonClientException ex) {
-            logger.error(String.format("Unable to publish {} from S3 bucket {}", name, bucket), ex);
+            logger.error("Unable to publish {} from S3 bucket {}", name, bucket, ex);
             throw new IllegalStateException(String.format("Unable to publish %s from S3 bucket %s", name, bucket), ex);
         }
 
@@ -151,7 +138,7 @@ public class S3Storage implements Storage {
         try {
             s3.setObjectAcl(bucket, name, CannedAccessControlList.Private);
         } catch (AmazonClientException ex) {
-            logger.error(String.format("Unable to unpublish {} from S3 bucket {}", name, bucket), ex);
+            logger.error("Unable to unpublish {} from S3 bucket {}", name, bucket, ex);
             throw new IllegalStateException(String.format("Unable to unpublish %s from S3 bucket %s", name, bucket), ex);
         }
     }
@@ -170,10 +157,10 @@ public class S3Storage implements Storage {
 
     private List<String> retrieveListing(ObjectListing request) {
         final List<String> contents = new ArrayList<>();
-        request.getObjectSummaries().stream().map(o -> o.getKey()).collect(Collectors.toCollection(() -> contents));
+        request.getObjectSummaries().stream().map(S3ObjectSummary::getKey).collect(Collectors.toCollection(() -> contents));
         while (request.isTruncated()) {
             request = s3.listNextBatchOfObjects(request);
-            request.getObjectSummaries().stream().map(o -> o.getKey()).collect(Collectors.toCollection(() -> contents));
+            request.getObjectSummaries().stream().map(S3ObjectSummary::getKey).collect(Collectors.toCollection(() -> contents));
         }
         return contents;
     }
@@ -183,7 +170,7 @@ public class S3Storage implements Storage {
             return Optional.ofNullable(tika.detect(file))
                     .orElse(DEFAULT_CONTENT_TYPE);
         } catch (IOException ex) {
-            logger.error(String.format("Unable to dermine MIME type for file {}", file.toString()), ex);
+            logger.error("Unable to dermine MIME type for file {}", file.toString(), ex);
             return DEFAULT_CONTENT_TYPE;
         }
     }
@@ -193,7 +180,7 @@ public class S3Storage implements Storage {
         if (relativePath.length == 0) {
             throw new IllegalArgumentException("At least one relative path must be specified.");
         }
-        return String.format(URL_TEMPLATE, bucket, Stream.of(relativePath).collect(Collectors.joining("/")));
+        return String.format(URL_TEMPLATE, bucket, String.join("/", relativePath));
     }
 
 }

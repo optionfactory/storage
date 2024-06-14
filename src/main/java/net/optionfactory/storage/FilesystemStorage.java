@@ -19,12 +19,6 @@ public class FilesystemStorage implements Storage {
     }
 
     @Override
-    public void store(String name, Path file) {
-        store(name, file, null);
-
-    }
-
-    @Override
     public void store(String name, Path file, Permissions ignored) {
         try {
             Files.createDirectories(repository);
@@ -32,11 +26,6 @@ public class FilesystemStorage implements Storage {
         } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
-    }
-
-    @Override
-    public void store(String name, byte[] data, String mimeType) {
-        store(name, data, mimeType, null);
     }
 
     @Override
@@ -68,7 +57,7 @@ public class FilesystemStorage implements Storage {
         try {
             return Files.list(path)
                     .map(p -> p.getFileName().toString())
-                    .collect(Collectors.toList());
+                    .toList();
         } catch (IOException ex) {
             throw new IllegalStateException("Unable to list storage repository", ex);
         }
@@ -89,7 +78,7 @@ public class FilesystemStorage implements Storage {
             throw new IllegalArgumentException("At least one relative path must be specified.");
         }
         //TODO: override uri generation with a pre-defined schema/domain if files are served somehow
-        final String path = Stream.of(relativePath).collect(Collectors.joining(File.pathSeparator));
+        final String path = String.join(File.pathSeparator, relativePath);
         return repository.resolve(path).toUri().toString();
     }
 
