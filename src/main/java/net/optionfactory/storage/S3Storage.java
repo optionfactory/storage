@@ -1,32 +1,31 @@
 package net.optionfactory.storage;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.amazonaws.util.IOUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.tika.Tika;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.PutObjectAclRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class S3Storage implements Storage {
 
@@ -34,25 +33,25 @@ public class S3Storage implements Storage {
     private static final String DEFAULT_CONTENT_TYPE = "binary/octet-stream";
     private static final String URL_TEMPLATE = "https://%s.s3.amazonaws.com/%s";
     private final Tika tika = new Tika();
-    private final AmazonS3 s3;
+    private final S3Client s3;
     private final String bucket;
     private final long cacheMaxAge;
 
-    private CannedAccessControlList aclFromPermissions(Permissions permissions) {
+    private ObjectCannedACL aclFromPermissions(Permissions permissions) {
         return switch (permissions) {
-            case PUBLIC_READ -> CannedAccessControlList.PublicRead;
-            case PRIVATE -> CannedAccessControlList.Private;
+            case PUBLIC_READ -> ObjectCannedACL.PUBLIC_READ;
+            case PRIVATE -> ObjectCannedACL.PRIVATE;
         };
     }
 
-    public S3Storage(String username, String password, String region, String bucket, long cacheMaxAge) {
-        this(new AWSStaticCredentialsProvider(new BasicAWSCredentials(username, password)), region, bucket, cacheMaxAge);
+    public S3Storage(String username, String password, Region region, String bucket, long cacheMaxAge) {
+        this(StaticCredentialsProvider.create(AwsBasicCredentials.create(username, password)), region, bucket, cacheMaxAge);
     }
 
-    public S3Storage(AWSCredentialsProvider provider, String region, String bucket, long cacheMaxAge) {
-        this.s3 = AmazonS3ClientBuilder.standard()
-                .withCredentials(provider)
-                .withRegion(region)
+    public S3Storage(AwsCredentialsProvider provider, Region region, String bucket, long cacheMaxAge) {
+        this.s3 = S3Client.builder()
+                .credentialsProvider(provider)
+                .region(region)
                 .build();
         this.bucket = bucket;
         this.cacheMaxAge = cacheMaxAge;
@@ -61,14 +60,17 @@ public class S3Storage implements Storage {
     @Override
     public void store(String targetName, Path sourceFile, Permissions permissions) {
         try {
-            final PutObjectRequest por = new PutObjectRequest(bucket, targetName, sourceFile.toFile());
             final String contentType = contentTypeForFile(sourceFile);
             logger.info("Uploading to S3 file {} with content type {}", sourceFile, contentType);
-            por.putCustomRequestHeader("Content-Type", contentType);
-            por.putCustomRequestHeader("Cache-Control", String.format("max-age=%d", cacheMaxAge));
-            por.setCannedAcl(aclFromPermissions(permissions));
-            s3.putObject(por);
-        } catch (AmazonClientException ex) {
+            final var request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(targetName)
+                    .cacheControl(String.format("max-age=%d", cacheMaxAge))
+                    .contentType(contentType)
+                    .acl(aclFromPermissions(permissions))
+                    .build();
+            s3.putObject(request, sourceFile);
+        } catch (SdkException ex) {
             logger.error("Unable to store {} on S3 bucket {}", targetName, bucket, ex);
             throw new IllegalStateException(String.format("Unable to store %s on S3 bucket %s", targetName, bucket), ex);
         }
@@ -77,16 +79,16 @@ public class S3Storage implements Storage {
     @Override
     public void store(String name, byte[] data, String mimeType, Permissions permissions) {
         try {
-            final ObjectMetadata metadata = new ObjectMetadata();
-            metadata.setContentLength(data.length);
-            metadata.setContentType(mimeType);
-            final PutObjectRequest por = new PutObjectRequest(bucket, name, new ByteArrayInputStream(data), metadata);
             logger.info("Uploading to S3 name {} with content type {}", name, mimeType);
-            por.putCustomRequestHeader("Content-Type", mimeType);
-            por.putCustomRequestHeader("Cache-Control", String.format("max-age=%d", cacheMaxAge));
-            por.setCannedAcl(aclFromPermissions(permissions));
-            s3.putObject(por);
-        } catch (AmazonClientException ex) {
+            final var request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(name)
+                    .cacheControl(String.format("max-age=%d", cacheMaxAge))
+                    .contentType(mimeType)
+                    .acl(aclFromPermissions(permissions))
+                    .build();
+            s3.putObject(request, RequestBody.fromBytes(data));
+        } catch (SdkException ex) {
             logger.error("Unable to store {} on S3 bucket {}", name, bucket, ex);
             throw new IllegalStateException(String.format("Unable to store %s on S3 bucket %s", name, bucket), ex);
         }
@@ -95,15 +97,19 @@ public class S3Storage implements Storage {
     @Override
     public Path retrieve(String name) {
         try {
-            final S3Object resource = s3.getObject(bucket, name);
-            try (final InputStream is = resource.getObjectContent()) {
+            final var request = GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(name)
+                    .build();
+
+            try (final var is = s3.getObject(request)) {
                 final Path temp = Files.createTempFile(bucket, ".tmp");
                 try (final OutputStream os = Files.newOutputStream(temp)) {
                     IOUtils.copy(is, os);
                     return temp;
                 }
             }
-        } catch (AmazonClientException | IOException ex) {
+        } catch (SdkException | IOException ex) {
             logger.error("Unable to retrieve {} from S3 bucket {}", name, bucket, ex);
             throw new IllegalStateException(String.format("Unable to retrieve %s from S3 bucket %s", name, bucket), ex);
         }
@@ -112,8 +118,14 @@ public class S3Storage implements Storage {
     @Override
     public void copy(String sourceName, String targetName) {
         try {
-            s3.copyObject(bucket, sourceName, bucket, targetName);
-        } catch (AmazonClientException ex) {
+            final var request = CopyObjectRequest.builder()
+                    .sourceBucket(bucket)
+                    .destinationBucket(bucket)
+                    .sourceKey(sourceName)
+                    .destinationKey(targetName)
+                    .build();
+            s3.copyObject(request);
+        } catch (SdkException ex) {
             logger.error("Unable to copy {} to {} from S3 bucket {}", sourceName, targetName, bucket, ex);
             throw new IllegalStateException(String.format("Unable to copy %s to %s from S3 bucket %s", sourceName, targetName, bucket), ex);
         }
@@ -122,8 +134,13 @@ public class S3Storage implements Storage {
     @Override
     public void publish(String name) {
         try {
-            s3.setObjectAcl(bucket, name, CannedAccessControlList.PublicRead);
-        } catch (AmazonClientException ex) {
+            final var request = PutObjectAclRequest.builder()
+                    .bucket(bucket)
+                    .key(name)
+                    .acl(ObjectCannedACL.PUBLIC_READ)
+                    .build();
+            s3.putObjectAcl(request);
+        } catch (SdkException ex) {
             logger.error("Unable to publish {} from S3 bucket {}", name, bucket, ex);
             throw new IllegalStateException(String.format("Unable to publish %s from S3 bucket %s", name, bucket), ex);
         }
@@ -133,8 +150,13 @@ public class S3Storage implements Storage {
     @Override
     public void unpublish(String name) {
         try {
-            s3.setObjectAcl(bucket, name, CannedAccessControlList.Private);
-        } catch (AmazonClientException ex) {
+            final var request = PutObjectAclRequest.builder()
+                    .bucket(bucket)
+                    .key(name)
+                    .acl(ObjectCannedACL.PRIVATE)
+                    .build();
+            s3.putObjectAcl(request);
+        } catch (SdkException ex) {
             logger.error("Unable to unpublish {} from S3 bucket {}", name, bucket, ex);
             throw new IllegalStateException(String.format("Unable to unpublish %s from S3 bucket %s", name, bucket), ex);
         }
@@ -142,24 +164,28 @@ public class S3Storage implements Storage {
 
     @Override
     public List<String> list() {
-        final ObjectListing listObjects = s3.listObjects(bucket);
-        return retrieveListing(listObjects);
+        final var request = ListObjectsV2Request.builder()
+                .bucket(bucket)
+                .build();
+        final var listObjectsResponse = s3.listObjectsV2Paginator(request);
+        return retrieveAll(listObjectsResponse);
     }
 
     @Override
-    public List<String> list(String path) {
-        final ObjectListing listObjects = s3.listObjects(bucket, path);
-        return retrieveListing(listObjects);
+    public List<String> list(String prefix) {
+        final var request = ListObjectsV2Request.builder()
+                .bucket(bucket)
+                .prefix(prefix)
+                .build();
+        final var listObjectsResponse = s3.listObjectsV2Paginator(request);
+        return retrieveAll(listObjectsResponse);
     }
 
-    private List<String> retrieveListing(ObjectListing request) {
-        final List<String> contents = new ArrayList<>();
-        request.getObjectSummaries().stream().map(S3ObjectSummary::getKey).collect(Collectors.toCollection(() -> contents));
-        while (request.isTruncated()) {
-            request = s3.listNextBatchOfObjects(request);
-            request.getObjectSummaries().stream().map(S3ObjectSummary::getKey).collect(Collectors.toCollection(() -> contents));
-        }
-        return contents;
+    private List<String> retrieveAll(ListObjectsV2Iterable objects) {
+        return objects.stream()
+                .flatMap(r -> r.contents().stream())
+                .map(S3Object::key)
+                .toList();
     }
 
     public String contentTypeForFile(Path file) {
@@ -167,7 +193,7 @@ public class S3Storage implements Storage {
             return Optional.ofNullable(tika.detect(file))
                     .orElse(DEFAULT_CONTENT_TYPE);
         } catch (IOException ex) {
-            logger.error("Unable to dermine MIME type for file {}", file.toString(), ex);
+            logger.error("Unable to determine MIME type for file {}", file.toString(), ex);
             return DEFAULT_CONTENT_TYPE;
         }
     }
