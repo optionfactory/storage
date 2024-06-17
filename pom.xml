@@ -126,22 +126,6 @@
     </build>
     <profiles>
         <profile>
-            <id>nexus</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <distributionManagement>
-                <snapshotRepository>
-                    <id>nexus</id>
-                    <url>${env.NEXUS_SNAPSHOTS_URL}</url>
-                </snapshotRepository>
-                <repository>
-                    <id>nexus</id>
-                    <url>${env.NEXUS_RELEASES_URL}</url>
-                </repository>
-            </distributionManagement>
-        </profile>
-        <profile>
             <id>ossrh</id>
             <distributionManagement>
                 <snapshotRepository>
