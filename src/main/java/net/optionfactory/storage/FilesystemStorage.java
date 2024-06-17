@@ -2,62 +2,87 @@ package net.optionfactory.storage;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class FilesystemStorage implements Storage {
 
-    private final Path repository;
+    private final Path base;
 
-    public FilesystemStorage(String repositoryPath) {
-        this.repository = Paths.get(repositoryPath);
+    public FilesystemStorage(Path basePath) {
+        this.base = basePath;
     }
 
     @Override
     public void store(String name, Path file, Permissions ignored) {
         try {
-            Files.createDirectories(repository);
-            Files.copy(file, repository.resolve(name));
+            Files.createDirectories(base);
+            Files.copy(file, base.resolve(name));
         } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
     }
 
     @Override
+    public void store(Path target, Path sourceFile, Permissions permissions) {
+        try {
+            final var finalDestination = base.resolve(target);
+            Files.createDirectories(finalDestination.getParent());
+            Files.copy(sourceFile, finalDestination);
+        } catch (IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    @Override
+    public void store(Path target, InputStream in, Permissions permissions) {
+        try {
+            final var finalDestination = base.resolve(target);
+            Files.createDirectories(finalDestination.getParent());
+            Files.copy(in, finalDestination);
+        } catch (IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    /**
+     * Avoid to use! Save the RAM save the world!
+     */
+    @Override
+    @Deprecated
     public void store(String name, byte[] data, String mimeType, Permissions ignored) {
         try {
-            Files.createDirectories(repository);
-            Files.write(repository.resolve(name), data, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            Files.createDirectories(base);
+            Files.write(base.resolve(name), data, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
     }
 
     @Override
-    public Path retrieve(String name) {
-        return repository.resolve(name);
+    public Path retrieve(Path name) {
+        return base.resolve(name);
     }
 
     @Override
-    public List<String> list() {
-        return retrieveListing(repository);
+    public List<Path> list() {
+        return retrieveListing(base);
     }
 
     @Override
-    public List<String> list(String path) {
-        return retrieveListing(repository.resolve(path));
+    public List<Path> list(Path path) {
+        return retrieveListing(base.resolve(path));
     }
 
-    private List<String> retrieveListing(Path path) {
-        try {
-            return Files.list(path)
-                    .map(p -> p.getFileName().toString())
-                    .toList();
+    private List<Path> retrieveListing(Path path) {
+        try (var list = Files.list(path)) {
+            return list.toList();
         } catch (IOException ex) {
             throw new IllegalStateException("Unable to list storage repository", ex);
         }
@@ -66,7 +91,7 @@ public class FilesystemStorage implements Storage {
     @Override
     public void copy(String sourceName, String targetName) {
         try {
-            Files.copy(repository.resolve(sourceName), repository.resolve(targetName));
+            Files.copy(base.resolve(sourceName), base.resolve(targetName));
         } catch (IOException ex) {
             throw new IllegalStateException("Unable to copy file", ex);
         }
@@ -79,7 +104,39 @@ public class FilesystemStorage implements Storage {
         }
         //TODO: override uri generation with a pre-defined schema/domain if files are served somehow
         final String path = String.join(File.pathSeparator, relativePath);
-        return repository.resolve(path).toUri().toString();
+        return base.resolve(path).toUri().toString();
+    }
+
+    @Override
+    public void delete(Path target) {
+        final var toBeDeleted = base.resolve(target);
+        if (Files.isRegularFile(toBeDeleted)) {
+            try {
+                Files.delete(toBeDeleted);
+                return;
+            } catch (IOException ex) {
+                throw new IllegalStateException("Unable to delete '%s'".formatted(target), ex);
+            }
+        }
+
+        try {
+            Files.walkFileTree(toBeDeleted, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    Files.delete(dir);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     @Override

@@ -12,15 +12,18 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectAclRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -58,25 +61,59 @@ public class S3Storage implements Storage {
     }
 
     @Override
-    public void store(String targetName, Path sourceFile, Permissions permissions) {
+    public void store(String name, Path sourceFile, Permissions permissions) {
         try {
             final String contentType = contentTypeForFile(sourceFile);
             logger.info("Uploading to S3 file {} with content type {}", sourceFile, contentType);
             final var request = PutObjectRequest.builder()
                     .bucket(bucket)
-                    .key(targetName)
+                    .key(name)
                     .cacheControl(String.format("max-age=%d", cacheMaxAge))
                     .contentType(contentType)
                     .acl(aclFromPermissions(permissions))
                     .build();
             s3.putObject(request, sourceFile);
         } catch (SdkException ex) {
-            logger.error("Unable to store {} on S3 bucket {}", targetName, bucket, ex);
-            throw new IllegalStateException(String.format("Unable to store %s on S3 bucket %s", targetName, bucket), ex);
+            logger.error("Unable to store {} on S3 bucket {}", name, bucket, ex);
+            throw new IllegalStateException(String.format("Unable to store %s on S3 bucket %s", name, bucket), ex);
         }
     }
 
     @Override
+    public void store(Path target, Path sourceFile, Permissions permissions) {
+        store(target.toString(), sourceFile, permissions);
+    }
+
+    @Override
+    public void store(Path target, InputStream in, Permissions permissions) {
+        try {
+            logger.info("Uploading to S3 name {}", target);
+            final var request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(target.toString())
+                    .cacheControl(String.format("max-age=%d", cacheMaxAge))
+                    .acl(aclFromPermissions(permissions))
+                    .build();
+            final var tempFileSoftened = createTempFileSoftened();
+            try {
+                in.transferTo(Files.newOutputStream(tempFileSoftened));
+                s3.putObject(request, RequestBody.fromFile(tempFileSoftened));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } finally {
+                deleteFileSoftened(tempFileSoftened);
+            }
+        } catch (SdkException ex) {
+            logger.error("Unable to store {} on S3 bucket {}", target, bucket, ex);
+            throw new IllegalStateException(String.format("Unable to store %s on S3 bucket %s", target, bucket), ex);
+        }
+    }
+
+    /**
+     * Avoid to use! Save the RAM save the world!
+     */
+    @Override
+    @Deprecated
     public void store(String name, byte[] data, String mimeType, Permissions permissions) {
         try {
             logger.info("Uploading to S3 name {} with content type {}", name, mimeType);
@@ -95,11 +132,11 @@ public class S3Storage implements Storage {
     }
 
     @Override
-    public Path retrieve(String name) {
+    public Path retrieve(Path name) {
         try {
             final var request = GetObjectRequest.builder()
                     .bucket(bucket)
-                    .key(name)
+                    .key(name.toString())
                     .build();
 
             try (final var is = s3.getObject(request)) {
@@ -163,28 +200,29 @@ public class S3Storage implements Storage {
     }
 
     @Override
-    public List<String> list() {
+    public List<Path> list() {
         final var request = ListObjectsV2Request.builder()
                 .bucket(bucket)
                 .build();
         final var listObjectsResponse = s3.listObjectsV2Paginator(request);
-        return retrieveAll(listObjectsResponse);
+        return adaptKeyToPath(listObjectsResponse);
     }
 
     @Override
-    public List<String> list(String prefix) {
+    public List<Path> list(Path prefix) {
         final var request = ListObjectsV2Request.builder()
                 .bucket(bucket)
-                .prefix(prefix)
+                .prefix(prefix.toString())
                 .build();
         final var listObjectsResponse = s3.listObjectsV2Paginator(request);
-        return retrieveAll(listObjectsResponse);
+        return adaptKeyToPath(listObjectsResponse);
     }
 
-    private List<String> retrieveAll(ListObjectsV2Iterable objects) {
+    private List<Path> adaptKeyToPath(ListObjectsV2Iterable objects) {
         return objects.stream()
                 .flatMap(r -> r.contents().stream())
                 .map(S3Object::key)
+                .map(Path::of)
                 .toList();
     }
 
@@ -206,4 +244,37 @@ public class S3Storage implements Storage {
         return String.format(URL_TEMPLATE, bucket, String.join("/", relativePath));
     }
 
+    @Override
+    public void delete(Path target) {
+        try {
+            final var toBeDeleted = list(target)
+                    .stream()
+                    .map(element -> ObjectIdentifier.builder().key(element.toString()).build())
+                    .toList();
+            final var delete = DeleteObjectsRequest.builder()
+                    .bucket(bucket)
+                    .delete(builder -> builder.objects(toBeDeleted))
+                    .build();
+            s3.deleteObjects(delete);
+        } catch (SdkException ex) {
+            logger.error("Unable to delete {} from S3 bucket {}", target, bucket, ex);
+            throw new IllegalStateException(String.format("Unable to retrieve %s from S3 bucket %s", target, bucket), ex);
+        }
+    }
+
+    private Path createTempFileSoftened() {
+        try {
+            return Files.createTempFile("storage-", ".tmp");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void deleteFileSoftened(Path toBeDeleted) {
+        try {
+            Files.deleteIfExists(toBeDeleted);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }
