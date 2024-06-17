@@ -130,7 +130,7 @@
             <distributionManagement>
                 <snapshotRepository>
                     <id>ossrh</id>
-                    <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+                    <url>https://maven.pkg.github.com/optionfactory/storage</url>
                 </snapshotRepository>
                 <repository>
                     <id>ossrh</id>
