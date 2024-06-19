@@ -112,6 +112,10 @@ public class FilesystemStorage implements Storage {
     @Override
     public void delete(Path target) {
         final var toBeDeleted = base.resolve(target);
+        if (!Files.exists(toBeDeleted)) {
+            return;
+        }
+
         if (Files.isRegularFile(toBeDeleted)) {
             try {
                 Files.delete(toBeDeleted);
