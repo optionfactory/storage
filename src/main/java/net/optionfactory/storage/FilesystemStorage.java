@@ -7,9 +7,11 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
+
 
 public class FilesystemStorage implements Storage {
 
@@ -23,29 +25,29 @@ public class FilesystemStorage implements Storage {
     public void store(String name, Path file, Permissions ignored) {
         try {
             Files.createDirectories(base);
-            Files.copy(file, base.resolve(name));
+            Files.copy(file, base.resolve(name), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
     }
 
     @Override
-    public void store(Path target, Path sourceFile, Permissions permissions) {
+    public void store(Path target, Path sourceFile, Permissions ignored) {
         try {
             final var finalDestination = base.resolve(target);
             Files.createDirectories(finalDestination.getParent());
-            Files.copy(sourceFile, finalDestination);
+            Files.copy(sourceFile, finalDestination, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
     }
 
     @Override
-    public void store(Path target, InputStream in, Permissions permissions) {
+    public void store(Path target, InputStream in, Permissions ignored) {
         try {
             final var finalDestination = base.resolve(target);
             Files.createDirectories(finalDestination.getParent());
-            Files.copy(in, finalDestination);
+            Files.copy(in, finalDestination, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
