@@ -18,7 +18,7 @@ public interface Storage {
     @Deprecated
     void store(String name, byte[] data, String mimeType, Permissions permissions);
 
-    Path retrieve(Path path);
+    InputStream retrieve(Path path);
 
     List<Path> list();
 

@@ -68,8 +68,12 @@ public class FilesystemStorage implements Storage {
     }
 
     @Override
-    public Path retrieve(Path name) {
-        return base.resolve(name);
+    public InputStream retrieve(Path name) {
+        try {
+            return Files.newInputStream(base.resolve(name));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

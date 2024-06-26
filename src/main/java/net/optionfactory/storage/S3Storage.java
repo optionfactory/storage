@@ -132,21 +132,14 @@ public class S3Storage implements Storage {
     }
 
     @Override
-    public Path retrieve(Path name) {
+    public InputStream retrieve(Path name) {
         try {
             final var request = GetObjectRequest.builder()
                     .bucket(bucket)
                     .key(name.toString())
                     .build();
-
-            try (final var is = s3.getObject(request)) {
-                final Path temp = Files.createTempFile(bucket, ".tmp");
-                try (final OutputStream os = Files.newOutputStream(temp)) {
-                    IOUtils.copy(is, os);
-                    return temp;
-                }
-            }
-        } catch (SdkException | IOException ex) {
+            return s3.getObject(request);
+        } catch (SdkException ex) {
             logger.error("Unable to retrieve {} from S3 bucket {}", name, bucket, ex);
             throw new IllegalStateException(String.format("Unable to retrieve %s from S3 bucket %s", name, bucket), ex);
         }
