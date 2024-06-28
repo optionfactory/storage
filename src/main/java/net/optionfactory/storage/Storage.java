@@ -20,6 +20,8 @@ public interface Storage {
 
     InputStream retrieve(Path path);
 
+    Path cacheLocally(InputStream inputStream);
+
     List<Path> list();
 
     List<Path> list(Path path);

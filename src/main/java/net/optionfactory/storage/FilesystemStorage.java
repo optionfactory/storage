@@ -1,8 +1,11 @@
 package net.optionfactory.storage;
 
+import org.apache.commons.io.IOUtils;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,6 +14,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
+import java.util.UUID;
 
 
 public class FilesystemStorage implements Storage {
@@ -71,6 +75,19 @@ public class FilesystemStorage implements Storage {
     public InputStream retrieve(Path name) {
         try {
             return Files.newInputStream(base.resolve(name));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public Path cacheLocally(InputStream inputStream) {
+        try {
+            final Path temp = Files.createTempFile(UUID.randomUUID().toString(), ".tmp");
+            try (final OutputStream os = Files.newOutputStream(temp)) {
+                IOUtils.copy(inputStream, os);
+                return temp;
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

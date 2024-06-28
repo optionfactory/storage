@@ -146,6 +146,19 @@ public class S3Storage implements Storage {
     }
 
     @Override
+    public Path cacheLocally(InputStream inputStream) {
+        try {
+            final Path temp = Files.createTempFile(bucket, ".tmp");
+            try (final OutputStream os = Files.newOutputStream(temp)) {
+                IOUtils.copy(inputStream, os);
+                return temp;
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
     public void copy(String sourceName, String targetName) {
         try {
             final var request = CopyObjectRequest.builder()
