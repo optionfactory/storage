@@ -26,7 +26,7 @@ public interface Storage {
 
     List<Path> list(Path path);
 
-    void copy(String sourceName, String targetName);
+    void copy(Path sourceName, Path targetName);
 
     String absoluteUrl(String... paths);
 

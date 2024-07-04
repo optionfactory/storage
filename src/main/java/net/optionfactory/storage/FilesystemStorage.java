@@ -76,7 +76,7 @@ public class FilesystemStorage implements Storage {
         try {
             return Files.newInputStream(base.resolve(name));
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new DataNotFoundException("Could not find %s".formatted(name), e);
         }
     }
 
@@ -112,7 +112,7 @@ public class FilesystemStorage implements Storage {
     }
 
     @Override
-    public void copy(String sourceName, String targetName) {
+    public void copy(Path sourceName, Path targetName) {
         try {
             Files.copy(base.resolve(sourceName), base.resolve(targetName));
         } catch (IOException ex) {

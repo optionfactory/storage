@@ -15,6 +15,7 @@ import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectAclRequest;
@@ -139,9 +140,11 @@ public class S3Storage implements Storage {
                     .key(name.toString())
                     .build();
             return s3.getObject(request);
+        } catch (NoSuchKeyException ex) {
+            throw new DataNotFoundException("Key %s not found in S3 bucket %s".formatted(name, bucket), ex);
         } catch (SdkException ex) {
             logger.error("Unable to retrieve {} from S3 bucket {}", name, bucket, ex);
-            throw new IllegalStateException(String.format("Unable to retrieve %s from S3 bucket %s", name, bucket), ex);
+            throw new IllegalStateException("Unable to retrieve %s from S3 bucket %s".formatted(name, bucket), ex);
         }
     }
 
@@ -159,15 +162,17 @@ public class S3Storage implements Storage {
     }
 
     @Override
-    public void copy(String sourceName, String targetName) {
+    public void copy(Path sourceName, Path targetName) {
         try {
             final var request = CopyObjectRequest.builder()
                     .sourceBucket(bucket)
                     .destinationBucket(bucket)
-                    .sourceKey(sourceName)
-                    .destinationKey(targetName)
+                    .sourceKey(sourceName.toString())
+                    .destinationKey(targetName.toString())
                     .build();
             s3.copyObject(request);
+        } catch (NoSuchKeyException ex) {
+            throw new DataNotFoundException("Key %s not found in S3 bucket %s".formatted(sourceName, bucket), ex);
         } catch (SdkException ex) {
             logger.error("Unable to copy {} to {} from S3 bucket {}", sourceName, targetName, bucket, ex);
             throw new IllegalStateException(String.format("Unable to copy %s to %s from S3 bucket %s", sourceName, targetName, bucket), ex);
@@ -232,7 +237,7 @@ public class S3Storage implements Storage {
                 .toList();
     }
 
-    public String contentTypeForFile(Path file) {
+    private String contentTypeForFile(Path file) {
         try {
             return Optional.ofNullable(tika.detect(file))
                     .orElse(DEFAULT_CONTENT_TYPE);
