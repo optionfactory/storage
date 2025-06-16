@@ -75,15 +75,16 @@ public class Zipper {
 
     public static byte[] compress(Map<String, ? extends InputStream> filenamesAndStreams) throws IOException {
         logger.debug("Compress in memory");
-        try (final var baos = new ByteArrayOutputStream();
-             var zout = new ZipOutputStream(baos)) {
-            for (Map.Entry<String, ? extends InputStream> entry : filenamesAndStreams.entrySet()) {
-                final var name = entry.getKey();
-                final var stream = entry.getValue();
-                logger.debug("Adding file {} to zip", name);
-                zout.putNextEntry(new ZipEntry(name));
-                stream.transferTo(zout);
-                zout.closeEntry();
+        try (var baos = new ByteArrayOutputStream()) {
+            try (var zout = new ZipOutputStream(baos)) {
+                for (Map.Entry<String, ? extends InputStream> entry : filenamesAndStreams.entrySet()) {
+                    final var name = entry.getKey();
+                    final var stream = entry.getValue();
+                    logger.debug("Adding file {} to zip", name);
+                    zout.putNextEntry(new ZipEntry(name));
+                    stream.transferTo(zout);
+                    zout.closeEntry();
+                }
             }
             return baos.toByteArray();
         }
