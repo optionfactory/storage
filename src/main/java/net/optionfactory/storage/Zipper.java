@@ -4,12 +4,15 @@ import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -68,5 +71,21 @@ public class Zipper {
         }
         logger.debug("Compressed {} files", files.size());
         return dst;
+    }
+
+    public static byte[] compress(Map<String, ? extends InputStream> filenamesAndStreams) throws IOException {
+        logger.debug("Compress in memory");
+        try (final var baos = new ByteArrayOutputStream();
+             var zout = new ZipOutputStream(baos)) {
+            for (Map.Entry<String, ? extends InputStream> entry : filenamesAndStreams.entrySet()) {
+                final var name = entry.getKey();
+                final var stream = entry.getValue();
+                logger.debug("Adding file {} to zip", name);
+                zout.putNextEntry(new ZipEntry(name));
+                stream.transferTo(zout);
+                zout.closeEntry();
+            }
+            return baos.toByteArray();
+        }
     }
 }
