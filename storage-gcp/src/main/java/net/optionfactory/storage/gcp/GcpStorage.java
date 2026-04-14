@@ -1,10 +1,13 @@
-package net.optionfactory.storage;
+package net.optionfactory.storage.gcp;
 
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage.BlobTargetOption;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
+import net.optionfactory.storage.DataNotFoundException;
+import net.optionfactory.storage.Permissions;
+import net.optionfactory.storage.Storage;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,5 +1,8 @@
-package net.optionfactory.storage;
+package net.optionfactory.storage.aws;
 
+import net.optionfactory.storage.DataNotFoundException;
+import net.optionfactory.storage.Permissions;
+import net.optionfactory.storage.Storage;
 import org.apache.commons.io.IOUtils;
 import org.apache.tika.Tika;
 import org.slf4j.Logger;
