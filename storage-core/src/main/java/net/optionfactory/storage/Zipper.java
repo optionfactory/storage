@@ -16,9 +16,26 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+/**
+ * Utility class for compressing and decompressing ZIP files.
+ */
 public class Zipper {
     private final static Logger logger = LoggerFactory.getLogger(Zipper.class);
 
+    /**
+     * Private constructor to prevent instantiation of utility class.
+     */
+    private Zipper() {
+    }
+
+    /**
+     * Decompresses a ZIP file to a destination directory.
+     *
+     * @param dst        the destination directory
+     * @param zippedFile the source ZIP file
+     * @return a list of paths to the decompressed files
+     * @throws RuntimeException if decompression fails
+     */
     public static List<Path> decompress(Path dst, Path zippedFile) {
         final var decompressedFiles = new ArrayList<Path>();
         logger.debug("Decompressing file '{}'", zippedFile);
@@ -52,6 +69,14 @@ public class Zipper {
         }
     }
 
+    /**
+     * Compresses a list of files into a ZIP archive at the specified destination.
+     *
+     * @param fileNames the list of paths to the files to compress
+     * @param dst       the destination path for the ZIP archive
+     * @return the path to the created ZIP archive
+     * @throws IOException if compression fails
+     */
     public static Path compress(List<Path> fileNames, Path dst) throws IOException {
         final var files = fileNames.stream()
                 .filter(Files::exists)
@@ -73,6 +98,13 @@ public class Zipper {
         return dst;
     }
 
+    /**
+     * Compresses multiple input streams into a ZIP archive in memory.
+     *
+     * @param filenamesAndStreams a map where keys are file names and values are input streams
+     * @return a byte array containing the ZIP archive data
+     * @throws IOException if compression fails
+     */
     public static byte[] compress(Map<String, ? extends InputStream> filenamesAndStreams) throws IOException {
         logger.debug("Compress in memory");
         try (var baos = new ByteArrayOutputStream()) {

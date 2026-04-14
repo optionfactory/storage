@@ -17,10 +17,18 @@ import java.util.List;
 import java.util.UUID;
 
 
+/**
+ * Implementation of {@link Storage} that uses the local filesystem.
+ */
 public class FilesystemStorage implements Storage {
 
     private final Path base;
 
+    /**
+     * Constructs a FilesystemStorage with the specified base path.
+     *
+     * @param basePath the base directory for storage
+     */
     public FilesystemStorage(Path basePath) {
         this.base = basePath;
     }

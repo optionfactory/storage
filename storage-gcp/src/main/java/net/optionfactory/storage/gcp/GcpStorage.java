@@ -26,6 +26,9 @@ import static com.google.cloud.storage.Storage.BlobWriteOption;
 import static com.google.cloud.storage.Storage.CopyRequest;
 import static com.google.cloud.storage.Storage.PredefinedAcl;
 
+/**
+ * Implementation of {@link Storage} that uses Google Cloud Storage.
+ */
 public class GcpStorage implements Storage {
     private static final Logger logger = LoggerFactory.getLogger(GcpStorage.class);
 
@@ -33,6 +36,13 @@ public class GcpStorage implements Storage {
     private final com.google.cloud.storage.Storage storage;
     private final boolean uniformBucketLevelAccess;
 
+    /**
+     * Constructs a GcpStorage.
+     *
+     * @param projectId                the GCP project ID
+     * @param bucketId                 the GCS bucket ID
+     * @param uniformBucketLevelAccess whether the bucket has uniform bucket-level access enabled
+     */
     public GcpStorage(String projectId, String bucketId, boolean uniformBucketLevelAccess) {
         this.bucket = bucketId;
         this.storage = StorageOptions.newBuilder().setProjectId(projectId).build().getService();

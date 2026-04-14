@@ -34,6 +34,9 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Implementation of {@link Storage} that uses Amazon S3.
+ */
 public class S3Storage implements Storage {
 
     private static final Logger logger = LoggerFactory.getLogger(S3Storage.class);
@@ -51,10 +54,27 @@ public class S3Storage implements Storage {
         };
     }
 
+    /**
+     * Constructs an S3Storage using static credentials.
+     *
+     * @param username    the AWS access key ID
+     * @param password    the AWS secret access key
+     * @param region      the AWS region
+     * @param bucket      the S3 bucket name
+     * @param cacheMaxAge the max-age value for Cache-Control header in seconds
+     */
     public S3Storage(String username, String password, Region region, String bucket, long cacheMaxAge) {
         this(StaticCredentialsProvider.create(AwsBasicCredentials.create(username, password)), region, bucket, cacheMaxAge);
     }
 
+    /**
+     * Constructs an S3Storage using a custom credentials provider.
+     *
+     * @param provider    the AWS credentials provider
+     * @param region      the AWS region
+     * @param bucket      the S3 bucket name
+     * @param cacheMaxAge the max-age value for Cache-Control header in seconds
+     */
     public S3Storage(AwsCredentialsProvider provider, Region region, String bucket, long cacheMaxAge) {
         this.s3 = S3Client.builder()
                 .credentialsProvider(provider)
