@@ -10,6 +10,7 @@
     </parent>
 
     <artifactId>storage-aws</artifactId>
+    <name>storage-aws</name>
 
     <properties>
         <maven.compiler.source>25</maven.compiler.source>
